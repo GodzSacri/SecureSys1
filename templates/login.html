@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecureSys v2 - Secure Login & Register</title>
+  <!-- Add CryptoJS for encryption -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <style>
+    /* Enhanced Global Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      background: linear-gradient(135deg, #4e54c8, #8f94fb);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2rem;
+      border-radius: 15px;
+      width: 350px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      backdrop-filter: blur(10px);
+      color: #fff;
+      animation: fadeIn 1s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      color: white;
+    }
+
+    .input-group {
+      margin-bottom: 1rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.8rem;
+      margin: 0.5rem 0;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    input:focus {
+      outline: none;
+      background: rgba(255,255,255,0.3);
+      box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.4);
+    }
+
+    input::placeholder {
+      color: #ddd;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.8rem;
+      margin-top: 1rem;
+      border: none;
+      border-radius: 8px;
+      background: #6c63ff;
+      color: white;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      background: #5a54e8;
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .toggle {
+      text-align: center;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      color: #ddd;
+      transition: color 0.3s ease;
+    }
+
+    .toggle:hover {
+      color: white;
+      text-decoration: underline;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .validation-message {
+      font-size: 0.8rem;
+      margin-top: 0.3rem;
+      padding-left: 0.5rem;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 id="formTitle">Secure Login</h2>
+
+    <div id="loginForm">
+      <div class="input-group">
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" />
+      </div>
+      <div class="input-group">
+        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" />
+      </div>
+      <button id="loginBtn" onclick="login()">
+        <span id="loginBtnText">Login</span>
+      </button>
+      <p class="toggle" onclick="toggleForm('register')">Don't have an account? Register</p>
+    </div>
+
+    <div id="registerForm" class="hidden">
+      <div class="input-group">
+        <input type="email" id="regEmail" placeholder="Email" autocomplete="username" />
+      </div>
+      <div class="input-group">
+        <input type="password" id="regPassword" placeholder="Password" autocomplete="new-password" />
+      </div>
+      <div class="input-group">
+        <input type="password" id="regConfirmPassword" placeholder="Confirm Password" autocomplete="new-password" />
+      </div>
+      <button id="registerBtn" onclick="register()">
+        <span id="registerBtnText">Register</span>
+      </button>
+      <p class="toggle" onclick="toggleForm('login')">Already have an account? Login</p>
+    </div>
+
+    <div id="notification" class="hidden" style="
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      background: #4CAF50;
+      color: white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 1000;
+    "></div>
+  </div>
+
+  <script>
+// Constants and setup
+const apiUrl = "http://127.0.0.1:5000";
+
+// Enhanced authenticated fetch function
+async function authenticatedFetch(url, options = {}) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        localStorage.clear();
+        window.location.href = '/login';
+        throw new Error("No authentication token found");
+    }
+
+    const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    
+    const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+    };
+
+    try {
+        const response = await fetch(fullUrl, {
+            ...options,
+            headers
+        });
+
+        if (response.status === 401) {
+            localStorage.clear();
+            window.location.href = '/login';
+            throw new Error("Session expired. Please login again.");
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.msg || `Request failed with status ${response.status}`);
+        }
+
+        return response;
+    } catch (error) {
+        console.error('API request failed:', error);
+        throw error;
+    }
+}
+
+// Load inbox messages with proper authentication
+async function loadInbox() {
+    try {
+        const messageList = document.getElementById('messageList');
+        if (!messageList) return;
+
+        messageList.innerHTML = '<div class="loading">Loading messages...</div>';
+
+        const response = await authenticatedFetch('/api/inbox');
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.msg || "Failed to load inbox");
+        }
+
+        // Render messages
+        messageList.innerHTML = data.messages.length ? 
+            data.messages.map(msg => `
+                <div class="message">
+                    <div class="message-header">
+                        <span class="sender">${msg.sender_email}</span>
+                        <span class="date">${new Date(msg.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div class="subject">${msg.subject}</div>
+                    <div class="body-preview">${msg.body.substring(0, 100)}...</div>
+                </div>
+            `).join('') : 
+            '<div class="no-messages">No messages in inbox</div>';
+
+    } catch (error) {
+        console.error('Failed to load inbox:', error);
+        const messageList = document.getElementById('messageList');
+        if (messageList) {
+            messageList.innerHTML = `<div class="error">${error.message}</div>`;
+        }
+        showNotification(error.message, true);
+    }
+}
+
+// Initialize inbox page
+function initInboxPage() {
+    // Check authentication
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = '/login';
+        return;
+    }
+
+    // Set user email if available
+    const userEmail = localStorage.getItem('email');
+    const userEmailElement = document.getElementById('userEmail');
+    if (userEmailElement && userEmail) {
+        userEmailElement.textContent = userEmail;
+    }
+
+    // Load messages
+    loadInbox();
+
+    // Set up event listeners
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+        localStorage.clear();
+        window.location.href = '/';
+    });
+
+    document.getElementById('refreshBtn')?.addEventListener('click', loadInbox);
+}
+
+// Start the inbox page when DOM is loaded
+if (window.location.pathname === '/inbox') {
+    document.addEventListener('DOMContentLoaded', initInboxPage);
+}
+  </script>
+</body>
+</html>
