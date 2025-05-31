@@ -179,123 +179,136 @@
       z-index: 1000;
     "></div>
   </div>
-
-  <script>
+<script>
 // Constants and setup
 const apiUrl = "http://127.0.0.1:5000";
 
-// Enhanced authenticated fetch function
-async function authenticatedFetch(url, options = {}) {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        localStorage.clear();
-        window.location.href = '/login';
-        throw new Error("No authentication token found");
-    }
-
-    const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+// Show notification function
+function showNotification(message, isError = false) {
+    const notification = document.getElementById('notification');
+    if (!notification) return;
     
-    const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-    };
+    notification.textContent = message;
+    notification.className = isError ? 'notification error' : 'notification';
+    notification.classList.remove('hidden');
+    
+    setTimeout(() => {
+        notification.classList.add('hidden');
+    }, 3000);
+}
 
+// Toggle between login/register forms
+function toggleForm(formType) {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const formTitle = document.getElementById('formTitle');
+    
+    if (formType === 'register') {
+        loginForm.classList.add('hidden');
+        registerForm.classList.remove('hidden');
+        formTitle.textContent = 'Create Account';
+    } else {
+        registerForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        formTitle.textContent = 'Secure Login';
+    }
+}
+
+// Login function
+async function login() {
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    
+    // Show loading state
+    const loginBtn = document.getElementById('loginBtn');
+    const loginBtnText = document.getElementById('loginBtnText');
+    const originalText = loginBtnText.textContent;
+    loginBtn.disabled = true;
+    loginBtnText.innerHTML = '<div class="loading"></div> Logging in...';
+    
     try {
-        const response = await fetch(fullUrl, {
-            ...options,
-            headers
+        if (!email || !password) {
+            throw new Error('Email and password are required');
+        }
+        
+        const response = await fetch(`${apiUrl}/api/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
         });
-
-        if (response.status === 401) {
-            localStorage.clear();
-            window.location.href = '/login';
-            throw new Error("Session expired. Please login again.");
-        }
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.msg || `Request failed with status ${response.status}`);
-        }
-
-        return response;
-    } catch (error) {
-        console.error('API request failed:', error);
-        throw error;
-    }
-}
-
-// Load inbox messages with proper authentication
-async function loadInbox() {
-    try {
-        const messageList = document.getElementById('messageList');
-        if (!messageList) return;
-
-        messageList.innerHTML = '<div class="loading">Loading messages...</div>';
-
-        const response = await authenticatedFetch('/api/inbox');
+        
         const data = await response.json();
-
+        
         if (!data.success) {
-            throw new Error(data.msg || "Failed to load inbox");
+            throw new Error(data.msg || 'Login failed');
         }
-
-        // Render messages
-        messageList.innerHTML = data.messages.length ? 
-            data.messages.map(msg => `
-                <div class="message">
-                    <div class="message-header">
-                        <span class="sender">${msg.sender_email}</span>
-                        <span class="date">${new Date(msg.timestamp).toLocaleString()}</span>
-                    </div>
-                    <div class="subject">${msg.subject}</div>
-                    <div class="body-preview">${msg.body.substring(0, 100)}...</div>
-                </div>
-            `).join('') : 
-            '<div class="no-messages">No messages in inbox</div>';
-
+        
+        // Save token and email in localStorage
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('email', email);
+        
+        // Redirect to inbox
+        window.location.href = '/inbox';
+        
     } catch (error) {
-        console.error('Failed to load inbox:', error);
-        const messageList = document.getElementById('messageList');
-        if (messageList) {
-            messageList.innerHTML = `<div class="error">${error.message}</div>`;
-        }
         showNotification(error.message, true);
+    } finally {
+        // Reset button state
+        loginBtn.disabled = false;
+        loginBtnText.textContent = originalText;
     }
 }
 
-// Initialize inbox page
-function initInboxPage() {
-    // Check authentication
-    const token = localStorage.getItem('token');
-    if (!token) {
-        window.location.href = '/login';
-        return;
+// Register function (simplified - needs backend implementation)
+async function register() {
+    const email = document.getElementById('regEmail').value;
+    const password = document.getElementById('regPassword').value;
+    const confirmPassword = document.getElementById('regConfirmPassword').value;
+    
+    // Show loading state
+    const registerBtn = document.getElementById('registerBtn');
+    const registerBtnText = document.getElementById('registerBtnText');
+    const originalText = registerBtnText.textContent;
+    registerBtn.disabled = true;
+    registerBtnText.innerHTML = '<div class="loading"></div> Registering...';
+    
+    try {
+        if (!email || !password || !confirmPassword) {
+            throw new Error('All fields are required');
+        }
+        
+        if (password !== confirmPassword) {
+            throw new Error('Passwords do not match');
+        }
+        
+        // NOTE: You need to implement a /api/register endpoint in app.py
+        const response = await fetch(`${apiUrl}/api/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.msg || 'Registration failed');
+        }
+        
+        showNotification('Registration successful! Please login');
+        toggleForm('login');
+        
+    } catch (error) {
+        showNotification(error.message, true);
+    } finally {
+        // Reset button state
+        registerBtn.disabled = false;
+        registerBtnText.textContent = originalText;
     }
-
-    // Set user email if available
-    const userEmail = localStorage.getItem('email');
-    const userEmailElement = document.getElementById('userEmail');
-    if (userEmailElement && userEmail) {
-        userEmailElement.textContent = userEmail;
-    }
-
-    // Load messages
-    loadInbox();
-
-    // Set up event listeners
-    document.getElementById('logoutBtn')?.addEventListener('click', () => {
-        localStorage.clear();
-        window.location.href = '/';
-    });
-
-    document.getElementById('refreshBtn')?.addEventListener('click', loadInbox);
 }
-
-// Start the inbox page when DOM is loaded
-if (window.location.pathname === '/inbox') {
-    document.addEventListener('DOMContentLoaded', initInboxPage);
-}
-  </script>
+</script>
 </body>
 </html>
