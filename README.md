@@ -1,8 +1,3 @@
-# Switch to backend branch
-git checkout backend
-
-# Create README file
-cat > README.md << 'EOF'
 # 🔧 SecureSys - Backend API
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
