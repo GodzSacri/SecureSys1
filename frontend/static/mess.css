@@ -346,3 +346,92 @@ textarea {
     padding: 1rem;
   }
 }
+.view-message-section {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.view-message-section .form-group {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.view-message-section .form-group label {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: #dcdcff;
+  display: block;
+}
+
+.view-message-section .form-group p {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #f0f0f0;
+  margin-top: 0.5rem;
+}
+
+.view-message-section .section-header h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+}
+form#replyForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+form#replyForm textarea,
+form#replyForm input[type="file"] {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+  color: white;
+}
+
+form#replyForm textarea::placeholder {
+  color: #ccc;
+}
+
+form#replyForm textarea:focus,
+form#replyForm input[type="file"]:focus {
+  background: rgba(255, 255, 255, 0.3);
+  outline: none;
+}
+
+form#replyForm .form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+form#replyForm .primary-btn {
+  background: #6c63ff;
+  color: white;
+  font-weight: 600;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+form#replyForm .primary-btn:hover {
+  background: #5750d4;
+}
+.file-label {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
