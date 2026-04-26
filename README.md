@@ -7,7 +7,6 @@ SecureSys is a secure web-based messaging platform that allows users to send and
 Architecture
 The project follows a client-server architecture with clear separation:
 
-text
 ┌─────────────────────────────────────────────────────────────┐
 │                        CLIENT (Browser)                      │
 │  ┌─────────────────────────────────────────────────────┐    │
@@ -48,8 +47,6 @@ text
 │  │  messages table - Encrypted messages & attachments   │    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
-
-
  User Flow
 1. Registration Process
 text
