@@ -729,4 +729,15 @@ def serve_static(filename):
 if __name__ == '__main__':
     import os
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    debug_mode = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
+    
+    print("=" * 50)
+    print("SecureSys Backend API Server")
+    print("=" * 50)
+    print(f"Server running on: http://0.0.0.0:{port}")
+    print(f"Test: http://0.0.0.0:{port}/test")
+    print(f"Debug: http://0.0.0.0:{port}/debug")
+    print(f"Debug mode: {debug_mode}")
+    print("=" * 50)
+    
+    app.run(debug=debug_mode, port=port, host='0.0.0.0')
