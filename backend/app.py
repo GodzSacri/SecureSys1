@@ -723,12 +723,9 @@ def add_header(response):
 def serve_static(filename):
     static_folder = os.path.join(PROJECT_ROOT, 'frontend', 'static')
     return send_from_directory(static_folder, filename)
+    
+# At the very bottom of app.py, replace the existing if __name__ block with:
 if __name__ == '__main__':
-    print("=" * 50)
-    print("SecureSys Backend API Server")
-    print("=" * 50)
-    print(f"Server running on: http://localhost:5000")
-    print(f"Test: http://localhost:5000/test")
-    print(f"Debug: http://localhost:5000/debug")
-    print("=" * 50)
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
