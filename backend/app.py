@@ -324,25 +324,54 @@ def get_inbox_messages():
 # (Include all your other routes here: /api/sent, /api/send, /api/encryption-status, etc.)
 
 # ==================== FRONTEND ROUTES ====================
+# Backend only serves API - Frontend is on Vercel
 @app.route('/')
 def home():
-    return render_template('login.html')
+    return jsonify({
+        "name": "SecureSys Backend API",
+        "status": "online",
+        "version": "1.0.0",
+        "frontend": "https://securesystem-wcd6.vercel.app",
+        "endpoints": {
+            "test": "/test",
+            "debug": "/debug",
+            "api_login": "/api/login",
+            "api_register": "/api/register",
+            "api_inbox": "/api/inbox",
+            "api_sent": "/api/sent",
+            "api_send": "/api/send",
+            "api_check_email": "/api/check-email",
+            "api_encryption_status": "/api/encryption-status"
+        }
+    })
 
 @app.route('/admin')
 def admin_dashboard():
-    return render_template("admin.html")
+    return jsonify({
+        "message": "Admin dashboard is served from Vercel",
+        "redirect_url": "https://securesystem-wcd6.vercel.app/admin"
+    })
 
 @app.route('/inbox')
 def inbox_page():
-    return render_template('inbox.html')
+    return jsonify({
+        "message": "Inbox page is served from Vercel",
+        "redirect_url": "https://securesystem-wcd6.vercel.app/inbox"
+    })
 
 @app.route('/compose')
 def compose_page():
-    return render_template('compose.html')
+    return jsonify({
+        "message": "Compose page is served from Vercel",
+        "redirect_url": "https://securesystem-wcd6.vercel.app/compose"
+    })
 
 @app.route('/sent')
 def sent_page():
-    return render_template('sent.html')
+    return jsonify({
+        "message": "Sent messages page is served from Vercel",
+        "redirect_url": "https://securesystem-wcd6.vercel.app/sent"
+    })
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
