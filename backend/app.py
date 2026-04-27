@@ -5,6 +5,8 @@ import mysql.connector
 import bcrypt
 from datetime import datetime, timedelta
 import os
+import json
+import traceback
 import sys
 from functools import wraps
 import hashlib
@@ -302,15 +304,60 @@ def get_inbox_messages():
         db.close()
         
         for message in messages:
+            # Convert timestamp to string for JSON serialization
             if message['timestamp']:
                 message['timestamp'] = message['timestamp'].isoformat()
             
+            # Handle encrypted messages differently based on type
             if message['is_encrypted']:
-                message['subject'] = MessageEncryption.decrypt_message(message['subject'])
-                message['body'] = MessageEncryption.decrypt_message(message['body'])
-                message['decrypted'] = True
+                # Check if this is client-side encrypted (JSON data in encrypted_key)
+                if message['encrypted_key']:
+                    try:
+                        # Try to parse as JSON - client-side encryption
+                        encrypted_data = json.loads(message['encrypted_key'])
+                        if isinstance(encrypted_data, dict) and 'ciphertext' in encrypted_data:
+                            # Client-side encrypted - don't decrypt on server
+                            message['subject'] = "[ENCRYPTED MESSAGE]"
+                            message['body'] = "[This message is encrypted end-to-end. Enter OTP to view.]"
+                            message['encrypted_data'] = encrypted_data  # Pass to frontend
+                            message['decrypted'] = False
+                            message['client_encrypted'] = True
+                        else:
+                            # Legacy server-side encrypted
+                            try:
+                                message['subject'] = MessageEncryption.decrypt_message(message['subject'])
+                                message['body'] = MessageEncryption.decrypt_message(message['body'])
+                                message['decrypted'] = True
+                                message['client_encrypted'] = False
+                            except:
+                                message['subject'] = "[DECRYPTION FAILED]"
+                                message['body'] = "[Failed to decrypt message]"
+                                message['decrypted'] = False
+                                message['client_encrypted'] = False
+                    except (json.JSONDecodeError, TypeError):
+                        # Legacy server-side encrypted (string key)
+                        try:
+                            message['subject'] = MessageEncryption.decrypt_message(message['subject'])
+                            message['body'] = MessageEncryption.decrypt_message(message['body'])
+                            message['decrypted'] = True
+                            message['client_encrypted'] = False
+                        except:
+                            message['subject'] = "[ENCRYPTED]"
+                            message['body'] = "[Encrypted message]"
+                            message['decrypted'] = False
+                            message['client_encrypted'] = False
+                else:
+                    # No encryption key stored - might be corrupted
+                    message['subject'] = "[ENCRYPTED - No Key]"
+                    message['body'] = "[Unable to decrypt: No encryption key]"
+                    message['decrypted'] = False
+                    message['client_encrypted'] = False
+                    message['encrypted_data'] = None
             else:
-                message['decrypted'] = False
+                # Plain text message - already readable
+                message['decrypted'] = True
+                message['client_encrypted'] = False
+                message['encrypted_data'] = None
         
         return jsonify({
             "success": True,
@@ -318,11 +365,14 @@ def get_inbox_messages():
         }), 200
         
     except Exception as e:
+        print(f"Error in get_inbox_messages: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "success": False,
             "msg": f"Failed to load inbox: {str(e)}"
         }), 500
-
+        
 @app.route('/api/sent', methods=['GET'])
 @jwt_required()
 def get_sent_messages():
@@ -343,15 +393,55 @@ def get_sent_messages():
         db.close()
         
         for message in messages:
+            # Convert timestamp to string for JSON serialization
             if message['timestamp']:
                 message['timestamp'] = message['timestamp'].isoformat()
             
+            # Handle encrypted messages (same logic as inbox)
             if message['is_encrypted']:
-                message['subject'] = MessageEncryption.decrypt_message(message['subject'])
-                message['body'] = MessageEncryption.decrypt_message(message['body'])
-                message['decrypted'] = True
+                if message['encrypted_key']:
+                    try:
+                        encrypted_data = json.loads(message['encrypted_key'])
+                        if isinstance(encrypted_data, dict) and 'ciphertext' in encrypted_data:
+                            # Client-side encrypted
+                            message['subject'] = "[ENCRYPTED MESSAGE]"
+                            message['body'] = "[End-to-end encrypted message]"
+                            message['encrypted_data'] = encrypted_data
+                            message['decrypted'] = False
+                            message['client_encrypted'] = True
+                        else:
+                            # Legacy server-side
+                            try:
+                                message['subject'] = MessageEncryption.decrypt_message(message['subject'])
+                                message['body'] = MessageEncryption.decrypt_message(message['body'])
+                                message['decrypted'] = True
+                                message['client_encrypted'] = False
+                            except:
+                                message['subject'] = "[ENCRYPTED]"
+                                message['body'] = "[Encrypted message]"
+                                message['decrypted'] = False
+                                message['client_encrypted'] = False
+                    except (json.JSONDecodeError, TypeError):
+                        try:
+                            message['subject'] = MessageEncryption.decrypt_message(message['subject'])
+                            message['body'] = MessageEncryption.decrypt_message(message['body'])
+                            message['decrypted'] = True
+                            message['client_encrypted'] = False
+                        except:
+                            message['subject'] = "[ENCRYPTED]"
+                            message['body'] = "[Encrypted message]"
+                            message['decrypted'] = False
+                            message['client_encrypted'] = False
+                else:
+                    message['subject'] = "[ENCRYPTED]"
+                    message['body'] = "[Encrypted message]"
+                    message['decrypted'] = False
+                    message['client_encrypted'] = False
+                    message['encrypted_data'] = None
             else:
-                message['decrypted'] = False
+                message['decrypted'] = True
+                message['client_encrypted'] = False
+                message['encrypted_data'] = None
         
         return jsonify({
             "success": True,
@@ -359,6 +449,7 @@ def get_sent_messages():
         }), 200
         
     except Exception as e:
+        print(f"Error in get_sent_messages: {str(e)}")
         return jsonify({
             "success": False,
             "msg": f"Failed to load sent messages: {str(e)}"
@@ -376,74 +467,148 @@ def allowed_file(filename):
 def send_message():
     try:
         user_email = get_jwt_identity()
-        recipient_email = request.form.get('recipient_email')
-        subject = request.form.get('subject')
-        body = request.form.get('body')
-        encrypt_message = request.form.get('encrypt_message', 'true').lower() == 'true'
-        files = request.files.getlist('attachments')
-
-        if not recipient_email or not subject or not body:
-            return jsonify({"success": False, "msg": "Recipient, subject, and body are required"}), 400
-
-        db = get_db_connection()
-        cursor = db.cursor(dictionary=True)
-
-        cursor.execute("SELECT email FROM users WHERE email = %s", (recipient_email,))
-        recipient = cursor.fetchone()
-        if not recipient:
+        
+        # Check if request is JSON (from new frontend) or FormData (old frontend)
+        if request.is_json:
+            # New frontend - JSON with encrypted data
+            data = request.get_json()
+            recipient_email = data.get('recipient_email')
+            subject = data.get('subject')
+            body = data.get('body')
+            encrypt_message = data.get('encrypt_message', False)
+            is_encrypted = data.get('is_encrypted', False)
+            encrypted_data = data.get('encrypted_data')  # JSON with ciphertext, iv, salt
+            encryption_otp = data.get('encryption_otp')  # For demo only - don't store in production!
+            has_attachments = data.get('has_attachments', False)
+            
+            if not recipient_email or not subject or not body:
+                return jsonify({"success": False, "msg": "Recipient, subject, and body are required"}), 400
+            
+            # Validate recipient exists
+            db = get_db_connection()
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("SELECT email FROM users WHERE email = %s", (recipient_email,))
+            recipient = cursor.fetchone()
+            
+            if not recipient:
+                db.close()
+                return jsonify({"success": False, "msg": "Recipient not found"}), 404
+            
+            # Store the message WITHOUT decrypting (client-side encryption)
+            final_subject = subject
+            final_body = body
+            encrypted_key_json = None
+            
+            if is_encrypted and encrypted_data:
+                # Store encrypted data as JSON string
+                encrypted_key_json = json.dumps(encrypted_data)
+                # Note: In production, you'd store encryption_otp separately or send via secure channel
+                
+            # Insert message into database
+            cursor.execute("""
+                INSERT INTO messages (
+                    sender_email, recipient_email, subject, body,
+                    is_encrypted, encrypted_key, attachment_path, timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+            """, (
+                user_email,
+                recipient_email,
+                final_subject,
+                final_body,
+                1 if is_encrypted else 0,
+                encrypted_key_json,
+                None  # Attachments handled separately if needed
+            ))
+            
+            db.commit()
             db.close()
-            return jsonify({"success": False, "msg": "Recipient not found"}), 404
-
-        final_subject = subject
-        final_body = body
-        is_encrypted = 0
-        encrypted_key = None
-
-        if encrypt_message:
-            final_subject = MessageEncryption.encrypt_message(subject)
-            final_body = MessageEncryption.encrypt_message(body)
-            is_encrypted = 1
-            encrypted_key = MessageEncryption.hash_sha256(base64.b64encode(ENCRYPTION_KEY).decode())
-
-        saved_filenames = []
-        for file in files:
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(UPLOAD_FOLDER, filename)
-                file_data = file.read()
-                encrypted_data = MessageEncryption.encrypt_file(file_data)
-                with open(filepath, 'wb') as f:
-                    f.write(encrypted_data)
-                saved_filenames.append(filename)
-
-        first_attachment = saved_filenames[0] if saved_filenames else None
-
-        cursor.execute("""
-            INSERT INTO messages (
-                sender_email, recipient_email, subject, body,
-                is_encrypted, encrypted_key, attachment_path, timestamp
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-        """, (
-            user_email,
-            recipient_email,
-            final_subject,
-            final_body,
-            is_encrypted,
-            encrypted_key,
-            first_attachment
-        ))
-
-        db.commit()
-        db.close()
-
-        return jsonify({
-            "success": True,
-            "msg": "Message sent successfully",
-            "encrypted": encrypt_message,
-            "attachments": saved_filenames
-        }), 200
-
+            
+            # In production, send OTP via email/SMS here
+            if is_encrypted and encryption_otp:
+                # TODO: Send OTP to recipient's email securely
+                print(f"OTP for {recipient_email}: {encryption_otp} - Send this via email!")
+            
+            return jsonify({
+                "success": True,
+                "msg": f"Message sent successfully {'(encrypted)' if is_encrypted else ''}",
+                "encrypted": is_encrypted
+            }), 200
+            
+        else:
+            # Old frontend - FormData (backward compatibility)
+            recipient_email = request.form.get('recipient_email')
+            subject = request.form.get('subject')
+            body = request.form.get('body')
+            encrypt_message = request.form.get('encrypt_message', 'true').lower() == 'true'
+            files = request.files.getlist('attachments')
+            
+            if not recipient_email or not subject or not body:
+                return jsonify({"success": False, "msg": "Recipient, subject, and body are required"}), 400
+            
+            db = get_db_connection()
+            cursor = db.cursor(dictionary=True)
+            
+            cursor.execute("SELECT email FROM users WHERE email = %s", (recipient_email,))
+            recipient = cursor.fetchone()
+            if not recipient:
+                db.close()
+                return jsonify({"success": False, "msg": "Recipient not found"}), 404
+            
+            final_subject = subject
+            final_body = body
+            is_encrypted = 0
+            encrypted_key = None
+            
+            # Only do server-side encryption if using old frontend
+            if encrypt_message:
+                # WARNING: This is server-side encryption - not as secure as client-side
+                final_subject = MessageEncryption.encrypt_message(subject)
+                final_body = MessageEncryption.encrypt_message(body)
+                is_encrypted = 1
+                encrypted_key = MessageEncryption.hash_sha256(base64.b64encode(ENCRYPTION_KEY).decode())
+            
+            saved_filenames = []
+            for file in files:
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    filepath = os.path.join(UPLOAD_FOLDER, filename)
+                    file_data = file.read()
+                    encrypted_data = MessageEncryption.encrypt_file(file_data)
+                    with open(filepath, 'wb') as f:
+                        f.write(encrypted_data)
+                    saved_filenames.append(filename)
+            
+            first_attachment = saved_filenames[0] if saved_filenames else None
+            
+            cursor.execute("""
+                INSERT INTO messages (
+                    sender_email, recipient_email, subject, body,
+                    is_encrypted, encrypted_key, attachment_path, timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+            """, (
+                user_email,
+                recipient_email,
+                final_subject,
+                final_body,
+                is_encrypted,
+                encrypted_key,
+                first_attachment
+            ))
+            
+            db.commit()
+            db.close()
+            
+            return jsonify({
+                "success": True,
+                "msg": "Message sent successfully",
+                "encrypted": encrypt_message,
+                "attachments": saved_filenames
+            }), 200
+            
     except Exception as e:
+        print(f"Error in send_message: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "msg": f"Failed to send message: {str(e)}"}), 500
 
 @app.route('/api/check-email', methods=['POST'])
