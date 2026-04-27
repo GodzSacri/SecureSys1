@@ -120,7 +120,7 @@ if len(ENCRYPTION_KEY) not in [16, 24, 32]:
     print(f"ERROR: ENCRYPTION_KEY has invalid size {len(ENCRYPTION_KEY)} bytes!")
     print(f"Expected 16, 24, or 32 bytes. Got {len(ENCRYPTION_KEY)} bytes.")
     print("Using fallback key. Please update ENVIRONMENT VARIABLE in Render.")
-    ENCRYPTION_KEY = b'SecureSys2024EncryptKey!!ABCDE'
+    ENCRYPTION_KEY = b'SecureSys2024EncryptKey!!ABCDE' # TEMPORARY Hardcoded 32-byte key
 else:
     print(f"Encryption key OK: {len(ENCRYPTION_KEY)} bytes")
 
