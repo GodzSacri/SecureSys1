@@ -189,52 +189,46 @@ def debug():
     """
 
 # ==================== API ENDPOINTS ====================
-@app.route('/api/login', methods=['POST'])
-def login():
-    db = None
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "msg": "Missing JSON data"}), 400
+async function login() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const captchaInput = parseInt(document.getElementById("loginCaptchaAnswer").value);
 
-        email = data.get('email')
-        password = data.get('password')
-        ip_address = request.remote_addr
+  if (!email || !password) {
+    showNotification("Please fill in all fields", true);
+    return;
+  }
 
-        if not email or not password:
-            return jsonify({"success": False, "msg": "Email and password are required"}), 400
+  if (captchaInput !== loginCaptchaAnswer) {
+    showNotification("Captcha incorrect", true);
+    generateCaptcha();
+    return;
+  }
 
-        db = get_db_connection()
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
+  try {
+    const res = await fetch(`${apiUrl}/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.msg);
 
-        if not user or not user.get('password_hash'):
-            return jsonify({"success": False, "msg": "Invalid credentials"}), 401
+    localStorage.setItem("token", data.access_token);
+    localStorage.setItem("role", data.role);
+    localStorage.setItem("email", email);
 
-        if not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
-            return jsonify({"success": False, "msg": "Invalid credentials"}), 401
+    // ✅ FIX: Redirect to Vercel frontend pages
+    if (data.role === "admin") {
+      window.location.href = "https://securesystem-wcd6.vercel.app/admin";
+    } else {
+      window.location.href = "https://securesystem-wcd6.vercel.app/inbox";
+    }
 
-        cursor.execute(
-            "UPDATE users SET last_active = NOW(), last_ip = %s WHERE email = %s",
-            (ip_address, email)
-        )
-        db.commit()
-
-        access_token = create_access_token(identity=email)
-        return jsonify({
-            "success": True,
-            "access_token": access_token,
-            "token_type": "bearer",
-            "email": email,
-            "role": user['role']
-        }), 200
-
-    except Exception as e:
-        return jsonify({"success": False, "msg": f"Login error: {str(e)}"}), 500
-    finally:
-        if db:
-            db.close()
+  } catch (e) {
+    showNotification(e.message, true);
+  }
+}
 
 @app.route('/api/register', methods=['POST'])
 def register():
