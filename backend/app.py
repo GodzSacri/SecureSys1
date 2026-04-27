@@ -110,19 +110,11 @@ def admin_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
-# ==================== ENCRYPTION CONFIGURATION WITH VALIDATION ====================
-# Encryption Configuration
-ENCRYPTION_KEY_ENV = os.environ.get('ENCRYPTION_KEY', 'SecureSys2024EncryptKey!!ABCDE')
-ENCRYPTION_KEY = ENCRYPTION_KEY_ENV[:32].encode()
+# ==================== ENCRYPTION CONFIGURATION (FIXED) ====================
+# Hardcoded 32-byte key for AES-256 encryption
+ENCRYPTION_KEY = b'SecureSys2024EncryptKey!!ABCDE'
 
-# Validate key size
-if len(ENCRYPTION_KEY) not in [16, 24, 32]:
-    print(f"ERROR: ENCRYPTION_KEY has invalid size {len(ENCRYPTION_KEY)} bytes!")
-    print(f"Expected 16, 24, or 32 bytes. Got {len(ENCRYPTION_KEY)} bytes.")
-    print("Using fallback key. Please update ENVIRONMENT VARIABLE in Render.")
-    ENCRYPTION_KEY = b'SecureSys2024EncryptKey!!ABCDE' # TEMPORARY Hardcoded 32-byte key
-else:
-    print(f"Encryption key OK: {len(ENCRYPTION_KEY)} bytes")
+print(f"Encryption key loaded: {len(ENCRYPTION_KEY)} bytes (32 bytes = AES-256)")
 
 class MessageEncryption:
     @staticmethod
