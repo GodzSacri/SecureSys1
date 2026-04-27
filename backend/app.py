@@ -58,10 +58,10 @@ CORS(app, resources={
 # Database connection
 def get_db_connection():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="securesysv4"
+        host="sql12.freesqldatabase.com",
+        user="sql12824556",
+        password="bvwi12De5Z",
+        database="sql12824556"
     )
 
 # OTP storage
