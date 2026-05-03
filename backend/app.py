@@ -113,16 +113,29 @@ def admin_required(fn):
     return wrapper
 
 # ==================== ENCRYPTION CONFIGURATION (FIXED) ====================
-# Hardcoded 32-byte key for AES-256 encryption
-ENCRYPTION_KEY = b'SecureSys2024EncryptKey!!ABCDEF'
+# Generate a proper 32-byte AES-256 key from a passphrase
+ENCRYPTION_PASSPHRASE = "SecureSys2024EncryptKey!!ABCDEF"
+# Derive a proper 32-byte key using SHA-256
+ENCRYPTION_KEY = hashlib.sha256(ENCRYPTION_PASSPHRASE.encode()).digest()
 
-print(f"Encryption key loaded: {len(ENCRYPTION_KEY)} bytes (32 bytes = AES-256)")
+print(f"Encryption key loaded: {len(ENCRYPTION_KEY)} bytes (AES-256 compatible)")
 
 class MessageEncryption:
     @staticmethod
-    def encrypt_message(message, key=None):
+    def _ensure_valid_key(key):
+        """Ensure key is valid for AES (16, 24, or 32 bytes)"""
         if key is None:
             key = ENCRYPTION_KEY
+        if isinstance(key, str):
+            key = key.encode()
+        if len(key) not in [16, 24, 32]:
+            # Force to 32 bytes using SHA-256 if invalid size
+            key = hashlib.sha256(key).digest()
+        return key
+    
+    @staticmethod
+    def encrypt_message(message, key=None):
+        key = MessageEncryption._ensure_valid_key(key)
         iv = secrets.token_bytes(12)
         cipher = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend())
         encryptor = cipher.encryptor()
@@ -131,11 +144,11 @@ class MessageEncryption:
 
     @staticmethod
     def decrypt_message(encrypted_message, key=None):
-        if key is None:
-            key = ENCRYPTION_KEY
+        key = MessageEncryption._ensure_valid_key(key)
         try:
             data = base64.b64decode(encrypted_message)
-            iv, tag = data[:12], data[-16:]
+            iv = data[:12]
+            tag = data[-16:]
             ciphertext = data[12:-16]
             cipher = Cipher(algorithms.AES(key), modes.GCM(iv, tag), backend=default_backend())
             decryptor = cipher.decryptor()
@@ -146,8 +159,7 @@ class MessageEncryption:
 
     @staticmethod
     def encrypt_file(file_data, key=None):
-        if key is None:
-            key = ENCRYPTION_KEY
+        key = MessageEncryption._ensure_valid_key(key)
         iv = secrets.token_bytes(12)
         cipher = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend())
         encryptor = cipher.encryptor()
@@ -156,8 +168,7 @@ class MessageEncryption:
 
     @staticmethod
     def decrypt_file(encrypted_data, key=None):
-        if key is None:
-            key = ENCRYPTION_KEY
+        key = MessageEncryption._ensure_valid_key(key)
         try:
             iv = encrypted_data[:12]
             tag = encrypted_data[-16:]
@@ -304,26 +315,20 @@ def get_inbox_messages():
         db.close()
         
         for message in messages:
-            # Convert timestamp to string for JSON serialization
             if message['timestamp']:
                 message['timestamp'] = message['timestamp'].isoformat()
             
-            # Handle encrypted messages differently based on type
             if message['is_encrypted']:
-                # Check if this is client-side encrypted (JSON data in encrypted_key)
                 if message['encrypted_key']:
                     try:
-                        # Try to parse as JSON - client-side encryption
                         encrypted_data = json.loads(message['encrypted_key'])
                         if isinstance(encrypted_data, dict) and 'ciphertext' in encrypted_data:
-                            # Client-side encrypted - don't decrypt on server
                             message['subject'] = "[ENCRYPTED MESSAGE]"
                             message['body'] = "[This message is encrypted end-to-end. Enter OTP to view.]"
-                            message['encrypted_data'] = encrypted_data  # Pass to frontend
+                            message['encrypted_data'] = encrypted_data
                             message['decrypted'] = False
                             message['client_encrypted'] = True
                         else:
-                            # Legacy server-side encrypted
                             try:
                                 message['subject'] = MessageEncryption.decrypt_message(message['subject'])
                                 message['body'] = MessageEncryption.decrypt_message(message['body'])
@@ -335,7 +340,6 @@ def get_inbox_messages():
                                 message['decrypted'] = False
                                 message['client_encrypted'] = False
                     except (json.JSONDecodeError, TypeError):
-                        # Legacy server-side encrypted (string key)
                         try:
                             message['subject'] = MessageEncryption.decrypt_message(message['subject'])
                             message['body'] = MessageEncryption.decrypt_message(message['body'])
@@ -347,14 +351,12 @@ def get_inbox_messages():
                             message['decrypted'] = False
                             message['client_encrypted'] = False
                 else:
-                    # No encryption key stored - might be corrupted
                     message['subject'] = "[ENCRYPTED - No Key]"
                     message['body'] = "[Unable to decrypt: No encryption key]"
                     message['decrypted'] = False
                     message['client_encrypted'] = False
                     message['encrypted_data'] = None
             else:
-                # Plain text message - already readable
                 message['decrypted'] = True
                 message['client_encrypted'] = False
                 message['encrypted_data'] = None
@@ -393,24 +395,20 @@ def get_sent_messages():
         db.close()
         
         for message in messages:
-            # Convert timestamp to string for JSON serialization
             if message['timestamp']:
                 message['timestamp'] = message['timestamp'].isoformat()
             
-            # Handle encrypted messages (same logic as inbox)
             if message['is_encrypted']:
                 if message['encrypted_key']:
                     try:
                         encrypted_data = json.loads(message['encrypted_key'])
                         if isinstance(encrypted_data, dict) and 'ciphertext' in encrypted_data:
-                            # Client-side encrypted
                             message['subject'] = "[ENCRYPTED MESSAGE]"
                             message['body'] = "[End-to-end encrypted message]"
                             message['encrypted_data'] = encrypted_data
                             message['decrypted'] = False
                             message['client_encrypted'] = True
                         else:
-                            # Legacy server-side
                             try:
                                 message['subject'] = MessageEncryption.decrypt_message(message['subject'])
                                 message['body'] = MessageEncryption.decrypt_message(message['body'])
@@ -477,8 +475,8 @@ def send_message():
             body = data.get('body')
             encrypt_message = data.get('encrypt_message', False)
             is_encrypted = data.get('is_encrypted', False)
-            encrypted_data = data.get('encrypted_data')  # JSON with ciphertext, iv, salt
-            encryption_otp = data.get('encryption_otp')  # For demo only - don't store in production!
+            encrypted_data = data.get('encrypted_data')
+            encryption_otp = data.get('encryption_otp')
             has_attachments = data.get('has_attachments', False)
             
             if not recipient_email or not subject or not body:
@@ -500,9 +498,7 @@ def send_message():
             encrypted_key_json = None
             
             if is_encrypted and encrypted_data:
-                # Store encrypted data as JSON string
                 encrypted_key_json = json.dumps(encrypted_data)
-                # Note: In production, you'd store encryption_otp separately or send via secure channel
                 
             # Insert message into database
             cursor.execute("""
@@ -517,15 +513,13 @@ def send_message():
                 final_body,
                 1 if is_encrypted else 0,
                 encrypted_key_json,
-                None  # Attachments handled separately if needed
+                None
             ))
             
             db.commit()
             db.close()
             
-            # In production, send OTP via email/SMS here
             if is_encrypted and encryption_otp:
-                # TODO: Send OTP to recipient's email securely
                 print(f"OTP for {recipient_email}: {encryption_otp} - Send this via email!")
             
             return jsonify({
@@ -559,9 +553,7 @@ def send_message():
             is_encrypted = 0
             encrypted_key = None
             
-            # Only do server-side encryption if using old frontend
             if encrypt_message:
-                # WARNING: This is server-side encryption - not as secure as client-side
                 final_subject = MessageEncryption.encrypt_message(subject)
                 final_body = MessageEncryption.encrypt_message(body)
                 is_encrypted = 1
@@ -787,7 +779,6 @@ def add_header(response):
     return response
 
 # ==================== FRONTEND ROUTES ====================
-# Backend only serves API - Frontend is on Vercel
 @app.route('/')
 def home():
     return jsonify({
