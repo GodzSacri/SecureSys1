@@ -80,9 +80,9 @@ def add_cors_headers(response):
 def get_db_connection():
     return mysql.connector.connect(
         host=os.environ.get('DB_HOST', 'sql12.freesqldatabase.com'),
-        user=os.environ.get('DB_USER', 'sql12824556'),
-        password=os.environ.get('DB_PASSWORD', 'bvwi12De5Z'),
-        database=os.environ.get('DB_NAME', 'sql12824556')
+        user=os.environ.get('DB_USER', 'sql12825173'),
+        password=os.environ.get('DB_PASSWORD', 'FvsTrpnAEY'),
+        database=os.environ.get('DB_NAME', 'sql12825173')
     )
 
 # OTP storage
