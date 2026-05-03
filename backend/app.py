@@ -114,7 +114,7 @@ def admin_required(fn):
 
 # ==================== ENCRYPTION CONFIGURATION (FIXED) ====================
 # Hardcoded 32-byte key for AES-256 encryption
-ENCRYPTION_KEY = b'SecureSys2024EncryptKey!!ABCDE'
+ENCRYPTION_KEY = b'SecureSys2024EncryptKey!!ABCDEF'
 
 print(f"Encryption key loaded: {len(ENCRYPTION_KEY)} bytes (32 bytes = AES-256)")
 
