@@ -69,7 +69,7 @@ CORS(app,
 @app.after_request
 def add_cors_headers(response):
     response.headers.add('Access-Control-Allow-Origin', 
-                         request.headers.get('Origin', 'https://securesystem-chi.vercel.app'))
+                         request.headers.get('Origin', 'https://securesystem-wcd6.vercel.app'))
     response.headers.add('Access-Control-Allow-Headers', 
                          'Content-Type,Authorization,Accept')
     response.headers.add('Access-Control-Allow-Methods', 
@@ -786,7 +786,7 @@ def home():
         "name": "SecureSys Backend API",
         "status": "online",
         "version": "1.0.0",
-        "frontend": "https://securesystem-chi.vercel.app",
+        "frontend": "https://securesystem-wcd6.vercel.app",
         "endpoints": {
             "test": "/test",
             "debug": "/debug",
