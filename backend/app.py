@@ -54,7 +54,7 @@ CORS(app,
          "http://localhost:5000",
          "http://127.0.0.1:3000",
          "http://127.0.0.1:5000",
-         "securesystem-chi.vercel.app",
+         "https://securesystem-chi.vercel.app",
          "https://*.vercel.app",
          "https://*.onrender.com"
      ],
@@ -68,7 +68,7 @@ CORS(app,
 @app.after_request
 def add_cors_headers(response):
     response.headers.add('Access-Control-Allow-Origin', 
-                         request.headers.get('Origin', 'https://securesystem-wcd6.vercel.app'))
+                         request.headers.get('Origin', 'https://securesystem-chi.vercel.app'))
     response.headers.add('Access-Control-Allow-Headers', 
                          'Content-Type,Authorization,Accept')
     response.headers.add('Access-Control-Allow-Methods', 
