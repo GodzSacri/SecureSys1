@@ -54,7 +54,7 @@ CORS(app,
          "http://localhost:5000",
          "http://127.0.0.1:3000",
          "http://127.0.0.1:5000",
-         "https://securesystem-wcd6.vercel.app",
+         "securesystem-chi.vercel.app",
          "https://*.vercel.app",
          "https://*.onrender.com"
      ],
