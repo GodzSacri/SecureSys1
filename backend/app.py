@@ -786,7 +786,7 @@ def home():
         "name": "SecureSys Backend API",
         "status": "online",
         "version": "1.0.0",
-        "frontend": "https://securesystem-wcd6.vercel.app",
+        "frontend": "https://securesystem-chi.vercel.app",
         "endpoints": {
             "test": "/test",
             "debug": "/debug",
